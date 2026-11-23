@@ -1,0 +1,46 @@
+name: Build macOS Desktop App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Run Static Analysis
+        run: flutter analyze
+
+      - name: Run Unit & Widget Tests
+        run: flutter test
+
+      - name: Build Native macOS App
+        run: flutter build macos --release
+
+      - name: Package App Bundle into Zip
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r -y mactouch-macos.zip mactouch.app
+
+      - name: Upload macOS App Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacTouch-macOS-Release
+          path: build/macos/Build/Products/Release/mactouch-macos.zip
+          retention-days: 14
