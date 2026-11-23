@@ -4,16 +4,22 @@ import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'services/display_service.dart';
 import 'services/profile_store.dart';
+import 'services/touch_server_service.dart';
+import 'services/system_cursor_service.dart';
 
 /// The root application widget for MacTouch.
 class MacTouchApp extends StatelessWidget {
   final DisplayService displayService;
   final ProfileStore profileStore;
+  final TouchServerService? touchServer;
+  final SystemCursorService? cursorService;
 
   const MacTouchApp({
     super.key,
     required this.displayService,
     required this.profileStore,
+    this.touchServer,
+    this.cursorService,
   });
 
   @override
@@ -37,6 +43,8 @@ class MacTouchApp extends StatelessWidget {
       home: MacTouchShell(
         displayService: displayService,
         profileStore: profileStore,
+        touchServer: touchServer,
+        cursorService: cursorService,
       ),
     );
   }
@@ -46,11 +54,15 @@ class MacTouchApp extends StatelessWidget {
 class MacTouchShell extends StatefulWidget {
   final DisplayService displayService;
   final ProfileStore profileStore;
+  final TouchServerService? touchServer;
+  final SystemCursorService? cursorService;
 
   const MacTouchShell({
     super.key,
     required this.displayService,
     required this.profileStore,
+    this.touchServer,
+    this.cursorService,
   });
 
   @override
@@ -63,7 +75,11 @@ class _MacTouchShellState extends State<MacTouchShell> {
   @override
   Widget build(BuildContext context) {
     final screens = [
-      DashboardScreen(displayService: widget.displayService),
+      DashboardScreen(
+        displayService: widget.displayService,
+        touchServer: widget.touchServer,
+        cursorService: widget.cursorService,
+      ),
       CalibrationScreen(
         displayService: widget.displayService,
         profileStore: widget.profileStore,

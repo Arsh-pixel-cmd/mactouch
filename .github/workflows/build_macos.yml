@@ -31,7 +31,10 @@ jobs:
         run: flutter test
 
       - name: Build Native macOS App
-        run: flutter build macos --release
+        run: |
+          flutter build macos --release
+          clang -O2 -framework ApplicationServices bin/cursor_bridge.c -o build/macos/Build/Products/Release/mactouch.app/Contents/MacOS/cursor_bridge
+          chmod +x build/macos/Build/Products/Release/mactouch.app/Contents/MacOS/cursor_bridge
 
       # upload-artifact v4 automatically zips directories natively for macOS Archive Utility
       - name: Upload macOS App Bundle

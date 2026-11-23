@@ -4,6 +4,8 @@ import 'app.dart';
 import 'platforms/display_adapter.dart';
 import 'services/display_service.dart';
 import 'services/profile_store.dart';
+import 'services/touch_server_service.dart';
+import 'services/system_cursor_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,8 +25,18 @@ void main() async {
   final profileStore = ProfileStore(profilePath);
   await profileStore.load();
 
+  // Initialize the Phone Touch Server (runs locally on port 8080)
+  final touchServer = TouchServerService();
+  await touchServer.start(port: 8080);
+
+  // Initialize the native macOS cursor control bridge
+  final cursorService = SystemCursorService();
+  cursorService.setEnabled(true);
+
   runApp(MacTouchApp(
     displayService: displayService,
     profileStore: profileStore,
+    touchServer: touchServer,
+    cursorService: cursorService,
   ));
 }

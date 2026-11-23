@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/coordinates/coordinate_spaces.dart';
 import '../../core/regions/quadrant.dart';
 import '../../models/display_info.dart';
 import '../../services/display_service.dart';
+import '../../services/touch_server_service.dart';
+import '../../services/system_cursor_service.dart';
 import '../../widgets/capability_badge.dart';
 import '../../widgets/coordinate_readout.dart';
 import '../../widgets/display_canvas.dart';
@@ -10,8 +14,15 @@ import '../../widgets/display_canvas.dart';
 /// Main dashboard screen for display inspection and coordinate visualization.
 class DashboardScreen extends StatefulWidget {
   final DisplayService displayService;
+  final TouchServerService? touchServer;
+  final SystemCursorService? cursorService;
 
-  const DashboardScreen({super.key, required this.displayService});
+  const DashboardScreen({
+    super.key,
+    required this.displayService,
+    this.touchServer,
+    this.cursorService,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -21,11 +32,77 @@ class _DashboardScreenState extends State<DashboardScreen> {
   NormalizedPoint _simulatedPointer = const NormalizedPoint(0.5, 0.5);
   NormalizedPoint? _inAppHoverPoint;
   bool _useSimulatedAsActive = true;
+  StreamSubscription<PhoneTouchEvent>? _touchSubscription;
+  StreamSubscription<int>? _clientCountSubscription;
+  int _connectedPhones = 0;
+  bool _controlSystemCursor = true;
 
   @override
   void initState() {
     super.initState();
     _refreshDisplays();
+    _initTouchServerListeners();
+  }
+
+  void _initTouchServerListeners() {
+    _touchSubscription = widget.touchServer?.onTouchEvent.listen((event) {
+      if (!mounted) return;
+
+      final selectedDisplay = widget.displayService.selectedDisplay;
+      final bounds = selectedDisplay?.bounds ??
+          const DisplayBounds(left: 0, top: 0, width: 1440, height: 900);
+      final mapper = CoordinateMapper(bounds);
+
+      if (event.type == 'move' && event.dx != null && event.dy != null) {
+        if (_controlSystemCursor) {
+          widget.cursorService?.moveRelative(event.dx!, event.dy!);
+        }
+      } else if (event.type == 'abs' && event.u != null && event.v != null) {
+        final norm = NormalizedPoint(event.u!, event.v!);
+        setState(() {
+          _simulatedPointer = norm;
+          _useSimulatedAsActive = true;
+        });
+        if (_controlSystemCursor && bounds.isValid) {
+          final pt = mapper.fromNormalized(norm);
+          widget.cursorService?.moveTo(pt.x, pt.y);
+        }
+      } else if (event.type == 'click') {
+        if (_controlSystemCursor) {
+          widget.cursorService?.click();
+        }
+      } else if (event.type == 'rclick') {
+        if (_controlSystemCursor) {
+          widget.cursorService?.rightClick();
+        }
+      } else if (event.type == 'down') {
+        if (_controlSystemCursor) {
+          widget.cursorService?.mouseDown();
+        }
+      } else if (event.type == 'up') {
+        if (_controlSystemCursor) {
+          widget.cursorService?.mouseUp();
+        }
+      } else if (event.type == 'scroll' && event.scrollDy != null) {
+        if (_controlSystemCursor) {
+          widget.cursorService?.scroll(event.scrollDy!);
+        }
+      }
+    });
+
+    _clientCountSubscription = widget.touchServer?.onClientCountChanged.listen((count) {
+      if (mounted) setState(() => _connectedPhones = count);
+    });
+
+    _connectedPhones = widget.touchServer?.connectedClients ?? 0;
+    _controlSystemCursor = widget.cursorService?.isEnabled ?? true;
+  }
+
+  @override
+  void dispose() {
+    _touchSubscription?.cancel();
+    _clientCountSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _refreshDisplays() async {
@@ -194,6 +271,161 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Smartphone Touch Digitizer Connection Card
+                    if (widget.touchServer != null) ...[
+                      Card(
+                        elevation: 0,
+                        color: const Color(0xFF232A36),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: BorderSide(
+                            color: _connectedPhones > 0
+                                ? Colors.greenAccent.withAlpha(180)
+                                : Colors.blueAccent.withAlpha(120),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.phone_iphone,
+                                    size: 18,
+                                    color: _connectedPhones > 0
+                                        ? Colors.greenAccent
+                                        : Colors.cyanAccent,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Text(
+                                      'Phone Touch Controller',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: _connectedPhones > 0
+                                          ? Colors.green.withAlpha(40)
+                                          : Colors.orange.withAlpha(30),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: _connectedPhones > 0
+                                            ? Colors.greenAccent
+                                            : Colors.orangeAccent,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: _connectedPhones > 0
+                                                ? Colors.greenAccent
+                                                : Colors.orangeAccent,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          _connectedPhones > 0
+                                              ? '$_connectedPhones Connected'
+                                              : 'Waiting for Phone',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: _connectedPhones > 0
+                                                ? Colors.greenAccent
+                                                : Colors.orangeAccent,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              const Text(
+                                'Open this URL in Safari (iPhone) or Chrome (Android) on the same Wi-Fi:',
+                                style: TextStyle(color: Colors.white70, fontSize: 11),
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black45,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.white12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: SelectableText(
+                                        widget.touchServer!.connectionUrl,
+                                        style: const TextStyle(
+                                          color: Colors.cyanAccent,
+                                          fontFamily: 'monospace',
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.copy, size: 14, color: Colors.white70),
+                                      tooltip: 'Copy URL',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () {
+                                        Clipboard.setData(ClipboardData(text: widget.touchServer!.connectionUrl));
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Phone URL copied to clipboard!'),
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Expanded(
+                                    child: Text(
+                                      'Control macOS Cursor',
+                                      style: TextStyle(fontSize: 11, color: Colors.white70),
+                                    ),
+                                  ),
+                                  Switch(
+                                    value: _controlSystemCursor,
+                                    activeColor: Colors.greenAccent,
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _controlSystemCursor = val;
+                                        widget.cursorService?.setEnabled(val);
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
                     // Active Coordinate Readout Card
                     CoordinateReadout(
                       desktopPoint: desktopPoint,

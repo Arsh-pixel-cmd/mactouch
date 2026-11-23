@@ -8,6 +8,13 @@ It provides deterministic coordinate mapping between desktop logical points, phy
 
 ## Key Features
 
+- **Smartphone Touch Digitizer (iPhone / Android)**:
+  - Turns any iPhone or Android phone into a real-time, low-latency touchscreen controller for your MacBook over local Wi-Fi.
+  - **Zero app installation on phone**: Phone connects directly via built-in local web server and WebSockets in Safari or Chrome.
+  - **Dual Touch Modes**:
+    - *Trackpad Mode*: Smooth cursor gliding, tap-to-click, and two-finger scrolling.
+    - *Direct Screen Mode*: Maps phone touch coordinates 1:1 to MacBook display coordinates.
+  - **Native macOS CoreGraphics Bridge**: Ultra-low-latency C helper for moving the desktop cursor and synthesizing clicks.
 - **Display Coordinate Engine**:
   - Pure-Dart math for normalized coordinates ($u, v \in [0, 1]$) relative to display bounds.
   - Native support for negative desktop origins (e.g., multi-monitor setups with secondary displays to the left or top).
